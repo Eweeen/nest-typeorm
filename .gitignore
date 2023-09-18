@@ -11,6 +11,12 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
+#Local env
+config.env
+encrypt-db.env
+.env.*.local
+.env
+
 # OS
 .DS_Store
 
