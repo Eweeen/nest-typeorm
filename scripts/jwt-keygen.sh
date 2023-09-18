@@ -32,7 +32,7 @@ done
 
 # User agree to proceed
 echo "#############  Keys generation in progress... #############"
-mkdir jwt
+[ ! -d jwt ] && mkdir jwt
 touch jwt/.gitkeep
 ssh-keygen -t rsa -b 2048 -m PEM -f jwt/id_rsa -P ''
 openssl rsa -in jwt/id_rsa -pubout -outform PEM -out jwt/id_rsa.pub
