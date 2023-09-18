@@ -14,6 +14,7 @@ while true; do
 
     case $yn in
     [yY])
+      rm -rf jwt
       break
       ;;
     [nN])
