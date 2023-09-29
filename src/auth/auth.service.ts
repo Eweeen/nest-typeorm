@@ -1,33 +1,41 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { readFileSync } from 'fs';
-import { UsersService } from 'src/users/users.service';
+import { UsersService } from '../users/users.service';
 import AuthDto from './dto/auth.dto';
-import { User } from 'src/users/entities/user.entity';
+import { User } from '../users/entities/user.entity';
 import { compare } from 'bcrypt';
 import TokenModel from './token.model';
-import { decode, sign } from 'jsonwebtoken';
 import { CookieOptions } from 'express';
 import { addHours } from 'date-fns';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class AuthService {
   private readonly privateKey: string;
+  private readonly publicKey: string;
 
-  public constructor(private readonly userService: UsersService) {
+  public constructor(
+    private readonly userService: UsersService,
+    private readonly jwtService: JwtService,
+  ) {
     this.privateKey = readFileSync('./jwt/id_rsa', 'utf8');
+    this.publicKey = readFileSync('./jwt/id_rsa.pub', 'utf8');
   }
 
   /**
    * Connecter un utilisateur.
    * @param {AuthDto} authDto - Les données de l'utilisateur à connecter.
+   * @returns {Promise<TokenModel | { message: string }>} Une promesse résolue avec un TokenModel ou un objet avec un message.
    * @async
    */
-  public async login(authDto: AuthDto) {
+  public async login(
+    authDto: AuthDto,
+  ): Promise<TokenModel | { message: string }> {
     const user: User = await this.userService.findOneAuthentification(
       authDto.email,
     );
 
-    // If user not found or password not match
+    // Si l'utilisateur n'existe pas ou que le mot de passe est incorrect
     if (!user || !(await compare(authDto.password, user.password))) {
       return { message: 'Identifiants incorrect' };
     }
@@ -37,7 +45,8 @@ export class AuthService {
 
   /**
    * Créer les options données aux cookies.
-   * @returns Une promesse résolue avec les options des cookies.
+   * @returns {Promise<CookieOptions>} Une promesse résolue avec les options des cookies.
+   * @async
    */
   public async craftCookieOptions(): Promise<CookieOptions> {
     return {
@@ -51,14 +60,15 @@ export class AuthService {
   /**
    * Rafraîchit le refreshToken.
    *
-   * @param cookies - Chaîne de caractères représentant les cookies reçus.
-   * @returns Une promesse résolue avec un TokenModel.
+   * @param {string} cookies - Chaîne de caractères représentant les cookies reçus.
+   * @returns {Promise<TokenModel>} Une promesse résolue avec un TokenModel.
+   * @async
    */
   public async refresh(cookies: string): Promise<TokenModel> {
-    // Extrait refreshToken
+    // Extrait le refreshToken
     const matchCookie: string = cookies
       .split('; ')
-      .find((cookie) => cookie.includes('refreshToken'));
+      .find((cookie: string) => cookie.includes('refreshToken'));
 
     if (!matchCookie) {
       throw new HttpException(
@@ -67,26 +77,28 @@ export class AuthService {
       );
     }
 
-    // Décode le refreshToken pour obtenir les informations de l'utilisateur
-    const token: any = decode(matchCookie.replace('refreshToken=', '').trim());
+    const token = await this.jwtService.verifyAsync(
+      matchCookie.replace('refreshToken=', '').trim(),
+      {
+        algorithms: ['RS256'],
+        secret: this.publicKey,
+      },
+    );
 
     // On arrive à décoder le token ?
-    if (!token || !token.email) {
+    if (!token?.id) {
       throw new HttpException(
         'Le refreshToken est malformé ou invalide.',
         HttpStatus.UNAUTHORIZED,
       );
     }
 
-    // Cherche l'utilisateur associé à l'email extrait du token
-    const user: User = await this.userService
-      .findOneAuthentification(token.email)
-      .catch(() => {
-        throw new HttpException(
-          'Utilisateur introuvable',
-          HttpStatus.NOT_FOUND,
-        );
-      });
+    // Cherche l'utilisateur associé à l'id extrait du token
+    const user: User = await this.userService.findOneById(token.id);
+
+    if (!user) {
+      throw new HttpException('Utilisateur introuvable', HttpStatus.NOT_FOUND);
+    }
 
     // Génère de nouveaux tokens pour l'utilisateur trouvé
     return this.generateTokens(user);
@@ -105,15 +117,22 @@ export class AuthService {
       role: user.role,
     };
 
-    return new TokenModel(
-      sign(userToken, this.privateKey, {
+    const [accessToken, refreshToken]: string[] = await Promise.all([
+      this.jwtService.signAsync(userToken, {
         algorithm: 'RS256',
+        secret: this.privateKey,
         expiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRE + 's',
       }),
-      sign(userToken, this.privateKey, {
-        algorithm: 'RS256',
-        expiresIn: process.env.JWT_REFRESH_TOKEN_EXPIRE + 'h',
-      }),
-    );
+      this.jwtService.signAsync(
+        { id: user.id },
+        {
+          algorithm: 'RS256',
+          secret: this.privateKey,
+          expiresIn: process.env.JWT_REFRESH_TOKEN_EXPIRE + 'h',
+        },
+      ),
+    ]);
+
+    return new TokenModel(accessToken, refreshToken);
   }
 }

@@ -1,10 +1,21 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import jwt from 'jsonwebtoken';
+import { extractTokenFromHeader } from '../common/functions';
+import { JwtService } from '@nestjs/jwt';
+import { Role } from './entities/role.entity';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(
+    private reflector: Reflector,
+    private readonly jwtService: JwtService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Réception des rôles autorisés pour la route
@@ -16,19 +27,17 @@ export class RolesGuard implements CanActivate {
     try {
       // Réception du token
       const request: any = context.switchToHttp().getRequest();
-      const auth = request.headers.authorization;
-
-      // Le token est valide ?
-      if (!auth || !auth.startsWith('Bearer ')) return false;
-
-      // Extrait le token
-      const token: string = auth.split(' ')[1];
+      const token: string = extractTokenFromHeader(request);
 
       // Le rôle du token est-il autorisé pour la route ?
-      const role = jwt.decode(token)['role'];
-      return arrayRoles.includes(role);
+      const role: Role = this.jwtService.decode(token)['role'];
+      const includes: boolean = arrayRoles.includes(role.label);
+
+      if (!includes) throw new Error();
+
+      return includes;
     } catch (_) {
-      return false;
+      throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
     }
   }
 }

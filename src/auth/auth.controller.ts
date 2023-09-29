@@ -23,20 +23,27 @@ export class AuthController {
   /**
    * Connecter un utilisateur.
    * @param {AuthDto} authDto - Les données de l'utilisateur à connecter.
+   * @param {Response} res - La réponse.
+   * @returns {Promise<Response<any, Record<string, any>>>} Une promesse résolue avec un TokenModel.
    * @async
    */
   @Post()
   @Throttle({ default: { limit: 20, ttl: 300 } }) // 20 requests max every 5 minutes for the same IP
-  async login(@Body() authDto: AuthDto, @Res() res: Response) {
+  async login(
+    @Body() authDto: AuthDto,
+    @Res() res: Response,
+  ): Promise<Response<any, Record<string, any>>> {
     // Tente de se connecter et on récupère le token si c'est bon
-    const response = await this.authService.login(authDto);
+    const response: TokenModel | { message: string } =
+      await this.authService.login(authDto);
 
     // Si ce n'est pas un TokenModel, c'est que le mot de passe ou l'email est incorrect
     if (!(response instanceof TokenModel)) {
       throw new HttpException(response, HttpStatus.UNAUTHORIZED);
     }
 
-    const cookieOptions = await this.authService.craftCookieOptions();
+    const cookieOptions: CookieOptions =
+      await this.authService.craftCookieOptions();
 
     // On met le refreshToken dans un cookie
     res.cookie('refreshToken', response.getRefreshToken(), cookieOptions);
@@ -49,11 +56,15 @@ export class AuthController {
    * Rafraîchir le token d'un utilisateur.
    * @param {Request} req - La requête.
    * @param {Response} res - La réponse.
+   * @returns {Promise<Response<any, Record<string, any>>>} Une promesse résolue avec un TokenModel.
    * @async
    */
-  @Post('/refresh')
   @SkipThrottle()
-  async refresh(@Req() req: Request, @Res() res: Response) {
+  @Post('/refresh')
+  async refresh(
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<Response<any, Record<string, any>>> {
     // Aucun cookie dans la requête
     if (!req.headers.cookie) {
       throw new HttpException(
@@ -73,15 +84,15 @@ export class AuthController {
       await this.authService.craftCookieOptions();
 
     res.cookie('refreshToken', response.getRefreshToken(), cookieOptions);
-    return res.status(200).send({ token: response.getToken() });
+    return res.send({ token: response.getToken() });
   }
 
   /**
    * Déconnecter un utilisateur.
    * @param {Response} res - La réponse.
    */
-  @Get('/logout')
   @SkipThrottle()
+  @Get('/logout')
   logout(@Res() res: Response): Response {
     res.clearCookie('refreshToken');
     return res.send({ message: 'Logout successfully' });
