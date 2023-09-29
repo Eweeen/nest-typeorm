@@ -11,16 +11,14 @@ Il faut créer une base de données dans un environnement MySQL ou MariaDB.
 
 ### Installer le projet
 
-Si vous utilisez autre chose que `pnpm`, supprimer le fichier `pnpm-lock.yaml` et remplacer `pnpm` par `npm` ou `yarn` dans les commandes suivantes.
-
 ```bash
-pnpm run init
+bun run init
 ```
 
 ## Lancer le projet
 
 ```bash
-pnpm start:dev
+bun run start:dev
 ```
 
 ## Autres commandes
@@ -28,7 +26,7 @@ pnpm start:dev
 ### Seeder la base de données
 
 ```bash
-pnpm seed
+bun run seed
 ```
 
 ### Générer une nouvelle migration
@@ -36,7 +34,7 @@ pnpm seed
 Pour générer un nouveau fichier de migration, exécutez la commande suivante :
 
 ```bash
-pnpm migration:generate migration_name
+bun run migration:generate migration_name
 ```
 
 Cette commande vérifie les différences entre le schéma de la base de données et les entités du projet. Le fichier de migration sera à la racine du projet. Il faudra donc le déplacer dans le dossier migrations.
@@ -46,18 +44,18 @@ Cette commande vérifie les différences entre le schéma de la base de données
 Pour effectuer les migrations, exécutez la commande suivante :
 
 ```bash
-pnpm migration:run
+bun run migration:run
 ```
 
 ## Test
 
 ```bash
 # unit tests
-$ pnpm test
+$ bun run test
 
 # e2e tests
-$ pnpm test:e2e
+$ bun run test:e2e
 
 # test coverage
-$ pnpm test:cov
+$ bun run test:cov
 ```

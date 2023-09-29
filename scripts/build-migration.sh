@@ -2,17 +2,17 @@
 set -e
 
 echo "#############  Build in progress... #############"
-pnpm build
+bun run build
 clear
 echo "#############  Build done #############"
 echo ""
 echo "#############  Migration in progress... #############"
-pnpm typeorm migration:run
+bun run typeorm migration:run
 clear
 echo "#############  Migration done #############"
 echo ""
 echo "#############  Build in progress... #############"
-pnpm build
+bun run build
 clear
 echo "#############  Build done #############"
 echo ""
